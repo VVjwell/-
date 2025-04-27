@@ -49,7 +49,17 @@ class MNISTDataset(torch.utils.data.Dataset):
         return len(self.images)
 
 
-def train(epochs, model, train_loader, optimizer, criterion, device, test_loader):
+class Callback():
+    def __init__(self):
+        self.stop_training = False
+
+    def on_epoch_end(self, epoch, logs={}):
+        if logs.get('loss') < 0.002 and logs.get('acc') > 94.0:
+            print('loss so low,stopping training')
+            self.stop_training = True
+
+
+def train(epochs, model, train_loader, optimizer, criterion, device, test_loader, callback):
     model.to(device)
     for epoch in range(epochs):
         model.train()
@@ -72,6 +82,11 @@ def train(epochs, model, train_loader, optimizer, criterion, device, test_loader
         acc = 100 * correct / total
         avg_loss = epoch_loss / len(train_loader.dataset)
         print(f'Epoch:{epoch + 1}\nTrain :accuracy:{acc:.2f}%, avg_loss:{avg_loss:.4f}')
+        if callback:
+            callback.on_epoch_end(epoch, logs={'loss': avg_loss, 'acc': acc})
+            if callback.stop_training:
+                print("Training stopped by callback.")
+                break
         model.eval()
         test(test_loader, model, criterion, device)
 
@@ -120,11 +135,12 @@ def main():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = Model()
+    callback = Callback()
     epochs = 5
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
     train(epochs=epochs, optimizer=optimizer, train_loader=train_loader, criterion=criterion, device=device,
-          model=model, test_loader=test_loader)
+          model=model, test_loader=test_loader, callback=callback)
 
 
 if __name__ == '__main__':
